@@ -31,14 +31,15 @@ function NumberInput({ label, value, onChange }) {
   )
 }
 
-function TextInput({ label, value, onChange, placeholder }) {
+function TextInput({ label, value, onChange, placeholder, disabled }) {
   return (
     <div>
       <label className="block text-xs uppercase tracking-wide text-cyan-300 mb-1">{label}</label>
       <input
         type="text"
         placeholder={placeholder}
-        className="w-full bg-slate-900/60 border border-cyan-500/30 rounded-md px-3 py-2 text-cyan-100 placeholder-cyan-400/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+        disabled={disabled}
+        className={`w-full bg-slate-900/60 border border-cyan-500/30 rounded-md px-3 py-2 text-cyan-100 placeholder-cyan-400/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/60 ${disabled ? 'opacity-60 cursor-not-allowed' : ''}`}
         value={value}
         onChange={(e) => onChange(e.target.value)}
       />
@@ -72,8 +73,17 @@ function InvoiceForm({ onSaved, editing }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    const body = {
+
+    const createBody = {
       invoice_no: invoiceNo,
+      customer,
+      item_name: itemName,
+      surat_jalan_no: suratJalanNo,
+      quantity,
+      price,
+    }
+
+    const updateBody = {
       customer,
       item_name: itemName,
       surat_jalan_no: suratJalanNo,
@@ -83,13 +93,16 @@ function InvoiceForm({ onSaved, editing }) {
 
     const url = editing ? `${BACKEND_URL}/api/invoices/${editing.id}` : `${BACKEND_URL}/api/invoices`
     const method = editing ? 'PUT' : 'POST'
+    const body = editing ? updateBody : createBody
+
     const res = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     })
     if (!res.ok) {
-      alert('Gagal menyimpan invoice')
+      const msg = res.status === 409 ? 'Nomor invoice sudah ada' : 'Gagal menyimpan invoice'
+      alert(msg)
       return
     }
     const data = await res.json()
@@ -107,13 +120,13 @@ function InvoiceForm({ onSaved, editing }) {
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <TextInput label="No Invoice" value={invoiceNo} onChange={setInvoiceNo} placeholder="INV-001" />
-        <TextInput label="Customer" value={customer} onChange={setCustomer} placeholder="Nama Customer" />
-        <TextInput label="Nama Barang" value={itemName} onChange={setItemName} placeholder="Contoh: Laptop" />
+        <TextInput label="No Invoice" value={invoiceNo} onChange={setInvoiceNo} disabled={!!editing} />
+        <TextInput label="Customer" value={customer} onChange={setCustomer} />
+        <TextInput label="Nama Barang" value={itemName} onChange={setItemName} />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <TextInput label="No Surat Jalan" value={suratJalanNo} onChange={setSuratJalanNo} placeholder="SJ-001" />
+        <TextInput label="No Surat Jalan" value={suratJalanNo} onChange={setSuratJalanNo} />
         <NumberInput label="Quantity" value={quantity} onChange={setQuantity} />
         <CurrencyInput label="Harga" value={price} onChange={setPrice} />
       </div>
