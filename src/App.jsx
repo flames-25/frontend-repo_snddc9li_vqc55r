@@ -58,13 +58,23 @@ function StatCard({ title, value, accent = 'cyan' }) {
   )
 }
 
-function InvoiceForm({ onSaved, editing }) {
+function InvoiceForm({ onSaved, editing, onCancel }) {
   const [invoiceNo, setInvoiceNo] = useState(editing?.invoice_no || '')
   const [customer, setCustomer] = useState(editing?.customer || '')
   const [itemName, setItemName] = useState(editing?.item_name || '')
   const [suratJalanNo, setSuratJalanNo] = useState(editing?.surat_jalan_no || '')
   const [quantity, setQuantity] = useState(editing?.quantity || 0)
   const [price, setPrice] = useState(editing?.price || 0)
+
+  useEffect(() => {
+    // When editing changes (click Edit), populate form
+    setInvoiceNo(editing?.invoice_no || '')
+    setCustomer(editing?.customer || '')
+    setItemName(editing?.item_name || '')
+    setSuratJalanNo(editing?.surat_jalan_no || '')
+    setQuantity(editing?.quantity || 0)
+    setPrice(editing?.price || 0)
+  }, [editing])
 
   const TAX_RATE = 0.11
   const subtotal = useMemo(() => quantity * price, [quantity, price])
@@ -137,7 +147,10 @@ function InvoiceForm({ onSaved, editing }) {
         <StatCard title="Total" value={total.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })} />
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-between">
+        {editing ? (
+          <button type="button" onClick={onCancel} className="px-4 py-2 rounded-md border border-cyan-500/30 bg-slate-900/50 hover:bg-slate-900 text-cyan-200">Batal</button>
+        ) : <div />}
         <button type="submit" className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white px-5 py-2.5 rounded-md shadow-lg shadow-cyan-500/20 border border-cyan-500/30">
           {editing ? 'Update' : 'Simpan'}
         </button>
@@ -168,6 +181,17 @@ function App() {
     loadInvoices()
   }, [])
 
+  async function handleDelete(invoiceNo) {
+    if (!confirm(`Hapus invoice ${invoiceNo}?`)) return
+    const res = await fetch(`${BACKEND_URL}/api/invoices/${invoiceNo}`, { method: 'DELETE' })
+    if (!res.ok) {
+      alert('Gagal menghapus invoice')
+      return
+    }
+    if (editing?.invoice_no === invoiceNo) setEditing(null)
+    loadInvoices()
+  }
+
   return (
     <div className="min-h-screen bg-slate-950 text-cyan-100">
       <div className="relative overflow-hidden">
@@ -176,7 +200,7 @@ function App() {
           <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">Invoice Penjualan</h1>
-              <p className="text-cyan-300/70">Tax 11% otomatis dari Qty x Harga. Data tersimpan dan bisa di-edit.</p>
+              <p className="text-cyan-300/70">Kelola invoice dengan cepat — pajak 11% dihitung otomatis.</p>
             </div>
             <button onClick={loadInvoices} className="px-4 py-2 rounded-md border border-cyan-500/30 bg-slate-900/50 hover:bg-slate-900 text-cyan-200">
               Refresh
@@ -192,6 +216,7 @@ function App() {
                   setEditing(null)
                   loadInvoices()
                 }}
+                onCancel={() => setEditing(null)}
               />
             </div>
 
@@ -226,12 +251,18 @@ function App() {
                           <td className="p-2 text-right">{inv.price?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</td>
                           <td className="p-2 text-right">{inv.tax?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</td>
                           <td className="p-2 text-right">{inv.total?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</td>
-                          <td className="p-2 text-center">
+                          <td className="p-2 text-center space-x-3">
                             <button
                               className="text-cyan-400 hover:underline"
                               onClick={() => setEditing(inv)}
                             >
                               Edit
+                            </button>
+                            <button
+                              className="text-rose-400 hover:underline"
+                              onClick={() => handleDelete(inv.invoice_no)}
+                            >
+                              Hapus
                             </button>
                           </td>
                         </tr>
