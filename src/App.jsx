@@ -17,16 +17,20 @@ function CurrencyInput({ label, value, onChange }) {
   )
 }
 
-function NumberInput({ label, value, onChange }) {
+function NumberInput({ label, value, onChange, step = 1, suffix }) {
   return (
     <div>
       <label className="block text-xs uppercase tracking-wide text-cyan-300 mb-1">{label}</label>
-      <input
-        type="number"
-        className="w-full bg-slate-900/60 border border-cyan-500/30 rounded-md px-3 py-2 text-cyan-100 placeholder-cyan-400/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
-        value={value}
-        onChange={(e) => onChange(parseInt(e.target.value || 0))}
-      />
+      <div className="relative">
+        <input
+          type="number"
+          step={step}
+          className="w-full bg-slate-900/60 border border-cyan-500/30 rounded-md px-3 py-2 pr-10 text-cyan-100 placeholder-cyan-400/40 focus:outline-none focus:ring-2 focus:ring-cyan-500/60"
+          value={value}
+          onChange={(e) => onChange(parseFloat(e.target.value || 0))}
+        />
+        {suffix ? <span className="absolute inset-y-0 right-0 flex items-center pr-3 text-cyan-300/70 text-sm">{suffix}</span> : null}
+      </div>
     </div>
   )
 }
@@ -65,20 +69,21 @@ function InvoiceForm({ onSaved, editing, onCancel }) {
   const [suratJalanNo, setSuratJalanNo] = useState(editing?.surat_jalan_no || '')
   const [quantity, setQuantity] = useState(editing?.quantity || 0)
   const [price, setPrice] = useState(editing?.price || 0)
+  const [taxRate, setTaxRate] = useState(editing?.tax_rate ?? 11)
 
   useEffect(() => {
-    // When editing changes (click Edit), populate form
+    // Populate form on edit
     setInvoiceNo(editing?.invoice_no || '')
     setCustomer(editing?.customer || '')
     setItemName(editing?.item_name || '')
     setSuratJalanNo(editing?.surat_jalan_no || '')
     setQuantity(editing?.quantity || 0)
     setPrice(editing?.price || 0)
+    setTaxRate(editing?.tax_rate ?? 11)
   }, [editing])
 
-  const TAX_RATE = 0.11
   const subtotal = useMemo(() => quantity * price, [quantity, price])
-  const tax = useMemo(() => parseFloat((subtotal * TAX_RATE).toFixed(2)), [subtotal])
+  const tax = useMemo(() => parseFloat((subtotal * (taxRate / 100)).toFixed(2)), [subtotal, taxRate])
   const total = useMemo(() => parseFloat((subtotal + tax).toFixed(2)), [subtotal, tax])
 
   async function handleSubmit(e) {
@@ -91,17 +96,20 @@ function InvoiceForm({ onSaved, editing, onCancel }) {
       surat_jalan_no: suratJalanNo,
       quantity,
       price,
+      tax_rate: taxRate,
     }
 
     const updateBody = {
+      invoice_no: invoiceNo, // allow PK change
       customer,
       item_name: itemName,
       surat_jalan_no: suratJalanNo,
       quantity,
       price,
+      tax_rate: taxRate,
     }
 
-    const url = editing ? `${BACKEND_URL}/api/invoices/${editing.id}` : `${BACKEND_URL}/api/invoices`
+    const url = editing ? `${BACKEND_URL}/api/invoices/${editing.invoice_no}` : `${BACKEND_URL}/api/invoices`
     const method = editing ? 'PUT' : 'POST'
     const body = editing ? updateBody : createBody
 
@@ -124,26 +132,28 @@ function InvoiceForm({ onSaved, editing, onCancel }) {
       setSuratJalanNo('')
       setQuantity(0)
       setPrice(0)
+      setTaxRate(11)
     }
   }
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <TextInput label="No Invoice" value={invoiceNo} onChange={setInvoiceNo} disabled={!!editing} />
+        <TextInput label="No Invoice" value={invoiceNo} onChange={setInvoiceNo} />
         <TextInput label="Customer" value={customer} onChange={setCustomer} />
         <TextInput label="Nama Barang" value={itemName} onChange={setItemName} />
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
         <TextInput label="No Surat Jalan" value={suratJalanNo} onChange={setSuratJalanNo} />
-        <NumberInput label="Quantity" value={quantity} onChange={setQuantity} />
+        <NumberInput label="Quantity" value={quantity} onChange={setQuantity} step={1} />
         <CurrencyInput label="Harga" value={price} onChange={setPrice} />
+        <NumberInput label="PPN" value={taxRate} onChange={setTaxRate} step={0.1} suffix="%" />
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <StatCard title="Subtotal" value={subtotal.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })} />
-        <StatCard title="Tax (11%)" value={tax.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })} accent="indigo" />
+        <StatCard title={`PPN (${taxRate}%)`} value={tax.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })} accent="indigo" />
         <StatCard title="Total" value={total.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })} />
       </div>
 
@@ -200,7 +210,7 @@ function App() {
           <header className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
             <div>
               <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-cyan-400 via-blue-400 to-indigo-400">Invoice Penjualan</h1>
-              <p className="text-cyan-300/70">Kelola invoice dengan cepat — pajak 11% dihitung otomatis.</p>
+              <p className="text-cyan-300/70">Kelola invoice dengan cepat — PPN bisa diatur dan dihitung otomatis.</p>
             </div>
             <button onClick={loadInvoices} className="px-4 py-2 rounded-md border border-cyan-500/30 bg-slate-900/50 hover:bg-slate-900 text-cyan-200">
               Refresh
@@ -235,7 +245,8 @@ function App() {
                         <th className="text-left p-2">No Surat Jalan</th>
                         <th className="text-right p-2">Qty</th>
                         <th className="text-right p-2">Harga</th>
-                        <th className="text-right p-2">Tax (11%)</th>
+                        <th className="text-right p-2">PPN (%)</th>
+                        <th className="text-right p-2">PPN (Rp)</th>
                         <th className="text-right p-2">Total</th>
                         <th className="text-center p-2">Aksi</th>
                       </tr>
@@ -249,6 +260,7 @@ function App() {
                           <td className="p-2">{inv.surat_jalan_no}</td>
                           <td className="p-2 text-right">{inv.quantity}</td>
                           <td className="p-2 text-right">{inv.price?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</td>
+                          <td className="p-2 text-right">{inv.tax_rate ?? 11}%</td>
                           <td className="p-2 text-right">{inv.tax?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</td>
                           <td className="p-2 text-right">{inv.total?.toLocaleString('id-ID', { style: 'currency', currency: 'IDR' })}</td>
                           <td className="p-2 text-center space-x-3">
@@ -275,7 +287,7 @@ function App() {
           </section>
 
           <footer className="mt-10 text-center text-xs text-cyan-400/60">
-            Built with a cyber blue theme • Responsif untuk mobile dan desktop
+            Tema cyber biru masa depan • Responsif untuk mobile dan desktop
           </footer>
         </div>
       </div>
